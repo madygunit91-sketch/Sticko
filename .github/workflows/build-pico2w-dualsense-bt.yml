@@ -14,12 +14,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout Sticko patch repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: sticko
 
       - name: Checkout GP2040-CE Bluetooth prototype
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: WilliamLewww/GP2040-CE-bluetooth
           ref: 89850b222830cbffdf3b6b796a5ab595a4a20fbc
@@ -31,7 +31,7 @@ jobs:
         run: python3 ../sticko/tools/patch_dualsense_bt.py
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20.x'
           cache: npm
@@ -44,13 +44,17 @@ jobs:
           CI=false npm run build --if-present
 
       - name: Install ARM embedded GCC
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        uses: carlosperate/arm-none-eabi-gcc-action@v1.10.1
 
-      - name: Checkout Raspberry Pi Pico SDK 2.3.1
-        uses: actions/checkout@v4
+      # The Bluetooth prototype branch was developed/tested with the SDK
+      # selected by Fortinbra/RaspberryPiPicoBuild@v7: Pico SDK 2.1.1.
+      # Newer SDK 2.3.x ships Mbed TLS 3.x and breaks this branch's PS4 auth
+      # source, which still uses the Mbed TLS 2.x API.
+      - name: Checkout Raspberry Pi Pico SDK 2.1.1
+        uses: actions/checkout@v6
         with:
           repository: raspberrypi/pico-sdk
-          ref: 2.3.1
+          ref: 2.1.1
           path: pico-sdk
 
       - name: Initialize Pico SDK submodules
@@ -76,7 +80,7 @@ jobs:
         run: find build -maxdepth 2 -type f \( -name '*.uf2' -o -name '*.elf' \) -print
 
       - name: Upload UF2 artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Sticko-Pico2W-DualSense-BT
           path: gp2040/build/*.uf2
