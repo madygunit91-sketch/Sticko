@@ -1,0 +1,83 @@
+name: Build Pico2W DualSense BT Prototype
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-pico2w-dualsense-bt.yml'
+      - 'tools/patch_dualsense_bt.py'
+      - 'README.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Sticko patch repo
+        uses: actions/checkout@v4
+        with:
+          path: sticko
+
+      - name: Checkout GP2040-CE Bluetooth prototype
+        uses: actions/checkout@v4
+        with:
+          repository: WilliamLewww/GP2040-CE-bluetooth
+          ref: 89850b222830cbffdf3b6b796a5ab595a4a20fbc
+          path: gp2040
+          fetch-depth: 1
+
+      - name: Apply Sticko DualSense Bluetooth identity patch
+        working-directory: gp2040
+        run: python3 ../sticko/tools/patch_dualsense_bt.py
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: gp2040/www/package-lock.json
+
+      - name: Build Web Config filesystem
+        working-directory: gp2040/www
+        run: |
+          npm ci
+          CI=false npm run build --if-present
+
+      - name: Install ARM embedded GCC
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+
+      - name: Checkout Raspberry Pi Pico SDK 2.3.1
+        uses: actions/checkout@v4
+        with:
+          repository: raspberrypi/pico-sdk
+          ref: 2.3.1
+          path: pico-sdk
+
+      - name: Initialize Pico SDK submodules
+        working-directory: pico-sdk
+        run: git submodule update --init
+
+      - name: Configure Pico 2 W build
+        working-directory: gp2040
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/pico-sdk
+          GP2040_BOARDCONFIG: Pico2W
+          SKIP_WEBBUILD: 'TRUE'
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Pico 2 W UF2
+        working-directory: gp2040
+        env:
+          GP2040_BOARDCONFIG: Pico2W
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Show generated firmware
+        working-directory: gp2040
+        run: find build -maxdepth 2 -type f \( -name '*.uf2' -o -name '*.elf' \) -print
+
+      - name: Upload UF2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sticko-Pico2W-DualSense-BT
+          path: gp2040/build/*.uf2
+          if-no-files-found: error
